@@ -26,43 +26,6 @@ from readData import MyDataset
 
 warnings.filterwarnings('ignore')   
 
-
-def bert_tokenizer(train_set):
-    '''
-    输入数据经过BERT模型，得到输入数据的特征，
-    这些特征包含了整个句子的信息，是语境层面的。类似于EMLo的特征抽取。
-    这里没有使用到BERT的微调，因为BERT并不参与后面的训练，仅仅进行特征抽取操作。
-    '''
-    
-    tokenizer = transformers.BertTokenizer.from_pretrained('bert-base-uncased')
-    model = transformers.BertModel.from_pretrained('bert-base-uncased')
-
-    # BERT的分词操作不是以传统的单词为单位，而是以wordpiece为单位（比单词更细粒度的单位）
-    # add_special_tokens 表示在句子的首尾添加[CLS]和[SEP]符号
-    train_tokenized = train_set.apply((lambda x: tokenizer.encode(x, add_special_tokens=True)))  # train_set 是一个pandas的Series对象，包含了文本数据
-
-    # 提高训练速度——把句子都处理成同一长度——少填多截（pad、）
-    train_max_len = 0
-    for i in train_tokenized.values:
-        if len(i) > train_max_len:
-            train_max_len = len(i)
-
-    train_padded = np.array([i + [0] * (train_max_len-len(i)) for i in train_tokenized.values])
-    print("train set shape:", train_padded.shape)
-
-    # 让模型知道，哪些词不用处理
-    # np.where(condition) 满足条件condition则输出
-    train_attention_mask = np.where(train_padded != 0, 1, 0)
-
-    # 经过上面的步骤，输入数据已经可以正确被BERT模型接受并处理，下面进行特征的输出
-    train_input_ids = torch.tensor(train_padded).long()
-    train_attention_mask = torch.tensor(train_attention_mask).long()
-    with torch.no_grad():
-        train_last_hidden_states = model(train_input_ids, attention_mask=train_attention_mask)
-    # bert模型的输出：
-    # print(train_last_hidden_states[0].size())
-    return train_last_hidden_states[0][:, 0, :].numpy()  # 取出[CLS]对应的特征向量
-
 def bart_extractor(tokenizer, t_model, text):
     inputs = tokenizer(text, return_tensors="pt", padding=True, truncation=True, max_length=1024)
     t_outputs = t_model(**inputs)
@@ -85,7 +48,7 @@ class Cross_modal_atten(nn.Module):
         factory_kwargs = {'device': device, 'dtype': dtype}
 
         if First == True:
-            self.cls_token = nn.Parameter(torch.randn(1, 1, d_model)) ######
+            self.cls_token = nn.Parameter(torch.randn(1, 1, d_model)) 
         self.norm = LayerNorm(d_model, eps=layer_norm_eps, **factory_kwargs)  
         self.cross_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=True,
                                             **factory_kwargs)
@@ -215,10 +178,10 @@ if __name__ == "__main__":
     print(model)
     summary(model, [(1, input_size),(1, input_size)], device=device)
 
-    vit_model = "/nfs/xy_outputs/depression/code/vit-base-patch16-224-in21k"
+    vit_model = "google/vit-base-patch16-224-in21k"
     processor = ViTImageProcessor.from_pretrained(vit_model)
     v_model = ViTModel.from_pretrained(vit_model)
-    bart_model = "/nfs/xy_outputs/depression/code/bart-base"
+    bart_model = "facebook/bart-base"
     tokenizer = BartTokenizer.from_pretrained(bart_model)
     t_model = BartModel.from_pretrained(bart_model)
 
